@@ -1,0 +1,23 @@
+[Unit]
+Description=Let users register their own TOTP seed
+After=network.target
+
+[Service]
+# -issuer ends up in the URI the caller scans, so give each host its own.
+# -seed-dir has to be the directory pam is reading, or the enrolment will look
+# like it worked and the login will still be refused
+ExecStart=/usr/local/sbin/totp-enroll -daemon -issuer HOST -seed-dir /etc/google-authenticator
+# on-failure leaves the daemon down after a plain kill, and a caller only finds
+# out when they cannot enrol. systemctl stop still stops it
+Restart=always
+
+# The seeds are the only thing this needs to reach
+ProtectSystem=strict
+ReadWritePaths=/etc/google-authenticator
+RuntimeDirectory=totp-enroll
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
