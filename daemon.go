@@ -65,51 +65,51 @@ func (d daemon) handle(conn *net.UnixConn) {
 }
 
 func (d daemon) enrol(conn *net.UnixConn, enc *json.Encoder) (string, error) {
-	u, err := peerUser(conn)
+	name, err := peerUser(conn)
 	if err != nil {
 		enc.Encode(offer{Error: "cannot tell who you are"})
 		return "?", err
 	}
 
-	if hasSeed(d.seedDir, u.Username) {
+	if hasSeed(d.seedDir, name) {
 		enc.Encode(offer{Error: "already enrolled; ask an operator to reset it"})
-		return u.Username, fmt.Errorf("already enrolled")
+		return name, fmt.Errorf("already enrolled")
 	}
 
 	seed, err := newSeed()
 	if err != nil {
 		enc.Encode(offer{Error: "cannot make a seed"})
-		return u.Username, err
+		return name, err
 	}
 
-	uri := otpauthURI(d.issuer, u.Username, seed)
+	uri := otpauthURI(d.issuer, name, seed)
 
 	// The picture is a convenience and the address below it is what the app
 	// needs, so a host without qrencode can still enrol
 	qr, err := qrcode(uri)
 	if err != nil {
-		log.Printf("%s: no qr code: %v", u.Username, err)
+		log.Printf("%s: no qr code: %v", name, err)
 	}
 	if err := enc.Encode(offer{QR: qr, URI: uri}); err != nil {
-		return u.Username, err
+		return name, err
 	}
 
 	var a answer
 	if err := json.NewDecoder(conn).Decode(&a); err != nil {
-		return u.Username, err
+		return name, err
 	}
 
 	ok, err := verify(seed, a.Code, time.Now())
 	if err != nil || !ok {
 		enc.Encode(result{Error: "that code does not match; nothing was saved"})
-		return u.Username, fmt.Errorf("code rejected")
+		return name, fmt.Errorf("code rejected")
 	}
 
-	if err := writeSeed(d.seedDir, u.Username, seed); err != nil {
+	if err := writeSeed(d.seedDir, name, seed); err != nil {
 		enc.Encode(result{Error: "cannot save the seed"})
-		return u.Username, err
+		return name, err
 	}
-	return u.Username, enc.Encode(result{})
+	return name, enc.Encode(result{})
 }
 
 func otpauthURI(issuer, name, seed string) string {
