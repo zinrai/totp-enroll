@@ -7,8 +7,10 @@ import (
 	"io/fs"
 	"log"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -120,8 +122,17 @@ func (d daemon) enrol(conn *net.UnixConn, enc *json.Encoder) (string, error) {
 	return name, enc.Encode(result{})
 }
 
+// A name from a directory can hold characters such as @ or a space, which would
+// otherwise reach the app as part of the address rather than the name
 func otpauthURI(issuer, name, seed string) string {
-	return fmt.Sprintf("otpauth://totp/%s:%s?secret=%s&issuer=%s", issuer, name, seed, issuer)
+	i, n := uriEscape(issuer), uriEscape(name)
+	return fmt.Sprintf("otpauth://totp/%s:%s?secret=%s&issuer=%s", i, n, seed, i)
+}
+
+// The key URI format asks for a space as %20, which QueryEscape writes as +. A
+// + in the input is already %2B by then, so the two cannot be confused
+func uriEscape(s string) string {
+	return strings.ReplaceAll(url.QueryEscape(s), "+", "%20")
 }
 
 // Drawn here rather than by the caller so that the shell the caller is given

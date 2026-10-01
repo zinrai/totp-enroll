@@ -11,6 +11,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"strings"
 )
 
 // Under a unit with RuntimeDirectory=totp-enroll this is the one place in /run
@@ -48,6 +49,11 @@ func main() {
 	// the enrolment would look like it worked
 	if *issuer == "" || *seedDir == "" {
 		log.Fatal("-issuer and -seed-dir are required")
+	}
+	// The app splits the label on the first colon, so one in the issuer would
+	// move the rest of it into the account name
+	if strings.Contains(*issuer, ":") {
+		log.Fatal("-issuer cannot contain a colon")
 	}
 	if err := checkSeedDir(*seedDir); err != nil {
 		log.Fatal(err)

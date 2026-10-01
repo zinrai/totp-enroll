@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -145,4 +146,25 @@ func secretOf(t *testing.T, uri string) string {
 	}
 	secret, _, _ := strings.Cut(rest, "&")
 	return secret
+}
+
+// The issuer and the name are what the app shows, and either can hold
+// characters that mean something in a URI
+func TestURIEscapesTheLabel(t *testing.T) {
+	got := otpauthURI("gw example", "alice@corp+1", "ABCDEFGH")
+	want := "otpauth://totp/gw%20example:alice%40corp%2B1?secret=ABCDEFGH&issuer=gw%20example"
+	if got != want {
+		t.Errorf("got %s, want %s", got, want)
+	}
+
+	u, err := url.Parse(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Path != "/gw example:alice@corp+1" {
+		t.Errorf("label reads back as %q", u.Path)
+	}
+	if q := u.Query(); q.Get("secret") != "ABCDEFGH" || q.Get("issuer") != "gw example" {
+		t.Errorf("parameters read back as %v", q)
+	}
 }
