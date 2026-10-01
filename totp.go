@@ -15,9 +15,8 @@ const seedBytes = 16
 
 const (
 	period = 30 * time.Second
-	// pam_google_authenticator is deployed with WINDOW_SIZE 3, which accepts
-	// the step before and after the current one. Verifying over a narrower
-	// window would enrol a user whose clock the host later rejects
+	// Not kept apart from the WINDOW_SIZE written into the seed file: a wider
+	// window here than pam's would enrol a user whose clock pam then rejects
 	steps = 1
 )
 

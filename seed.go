@@ -13,7 +13,7 @@ import (
 // can hold
 const seedFile = `%s
 " TOTP_AUTH
-" WINDOW_SIZE 3
+" WINDOW_SIZE %d
 `
 
 var errEnrolled = errors.New("already enrolled")
@@ -48,7 +48,7 @@ func writeSeed(dir, name, seed string) error {
 	}
 	defer os.Remove(tmp.Name())
 
-	if _, err := fmt.Fprintf(tmp, seedFile, seed); err != nil {
+	if _, err := fmt.Fprintf(tmp, seedFile, seed, 2*steps+1); err != nil {
 		tmp.Close()
 		return err
 	}

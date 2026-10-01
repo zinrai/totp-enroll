@@ -48,7 +48,8 @@ func TestWrongCodeIsRejected(t *testing.T) {
 }
 
 // A code from the step before or after the current one is accepted, the window
-// pam_google_authenticator uses with WINDOW_SIZE 3
+// pam_google_authenticator uses with WINDOW_SIZE 3, and one from further away
+// is refused
 func TestCodeIsAcceptedAcrossTheWindow(t *testing.T) {
 	seed, err := newSeed()
 	if err != nil {
@@ -67,6 +68,20 @@ func TestCodeIsAcceptedAcrossTheWindow(t *testing.T) {
 		}
 		if !ok {
 			t.Errorf("refused the code from %v away", offset)
+		}
+	}
+
+	for _, offset := range []time.Duration{-60 * time.Second, 60 * time.Second} {
+		far, err := code(seed, now.Add(offset).Unix()/30)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ok, err := verify(seed, far, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ok {
+			t.Errorf("accepted the code from %v away", offset)
 		}
 	}
 }
