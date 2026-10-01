@@ -41,7 +41,12 @@ func hasSeed(dir, name string) bool {
 // The seed is put in place with a link rather than a rename. Two connections
 // from the same user can both pass hasSeed, and a rename would let the later one
 // replace the seed the earlier one saved, which is the second enrolment that is
-// meant to be refused. A link fails if the name is taken
+// meant to be refused. A link fails if the name is taken.
+//
+// Both the file and the directory are synced before the caller is told the
+// seed was saved. Without the first, a crash can leave the name pointing at an
+// empty file; without the second, the name itself can be lost and the user is
+// told they enrolled when they did not
 func writeSeed(dir, name, seed string) error {
 	tmp, err := os.CreateTemp(dir, ".enrol-")
 	if err != nil {
@@ -57,8 +62,24 @@ func writeSeed(dir, name, seed string) error {
 		tmp.Close()
 		return err
 	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return os.Link(tmp.Name(), seedPath(dir, name))
+	if err := os.Link(tmp.Name(), seedPath(dir, name)); err != nil {
+		return err
+	}
+	return syncDir(dir)
+}
+
+func syncDir(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	return d.Sync()
 }
