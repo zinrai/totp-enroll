@@ -5,7 +5,6 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,10 +14,7 @@ import (
 // The whole exchange, over a real socket, because the caller is identified by
 // the kernel and not by anything the protocol carries
 func TestEnrolmentWritesTheSeedForThePeer(t *testing.T) {
-	me, err := user.Current()
-	if err != nil {
-		t.Fatal(err)
-	}
+	me := self(t)
 
 	seedDir := t.TempDir()
 	conn := serving(t, seedDir)
@@ -50,18 +46,15 @@ func TestEnrolmentWritesTheSeedForThePeer(t *testing.T) {
 	if r.Error != "" {
 		t.Fatal(r.Error)
 	}
-	if !hasSeed(seedDir, me.Username) {
-		t.Errorf("no seed for %s", me.Username)
+	if !hasSeed(seedDir, me) {
+		t.Errorf("no seed for %s", me)
 	}
 }
 
 // Nothing is written until a code comes back, so a caller who gets it wrong is
 // left able to try again rather than locked out
 func TestRejectedCodeLeavesNoSeed(t *testing.T) {
-	me, err := user.Current()
-	if err != nil {
-		t.Fatal(err)
-	}
+	me := self(t)
 
 	seedDir := t.TempDir()
 	conn := serving(t, seedDir)
@@ -83,7 +76,7 @@ func TestRejectedCodeLeavesNoSeed(t *testing.T) {
 	if r.Error == "" {
 		t.Error("accepted a wrong code")
 	}
-	if hasSeed(seedDir, me.Username) {
+	if hasSeed(seedDir, me) {
 		t.Error("wrote a seed anyway")
 	}
 }
@@ -91,13 +84,10 @@ func TestRejectedCodeLeavesNoSeed(t *testing.T) {
 // Someone who took over a live session could otherwise move the second factor
 // to a phone of their own, and the real user would never know
 func TestSecondEnrolmentIsRefused(t *testing.T) {
-	me, err := user.Current()
-	if err != nil {
-		t.Fatal(err)
-	}
+	me := self(t)
 
 	seedDir := t.TempDir()
-	if err := writeSeed(seedDir, me.Username, "ABCDEFGH"); err != nil {
+	if err := writeSeed(seedDir, me, "ABCDEFGH"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -112,13 +102,25 @@ func TestSecondEnrolmentIsRefused(t *testing.T) {
 		t.Error("offered a second seed")
 	}
 
-	b, err := os.ReadFile(seedPath(seedDir, me.Username))
+	b, err := os.ReadFile(seedPath(seedDir, me))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.HasPrefix(string(b), "ABCDEFGH\n") {
 		t.Errorf("the seed was replaced: %q", b)
 	}
+}
+
+// The name the daemon gives this process, found the way the daemon finds it.
+// os/user reads /etc/passwd alone in a build without cgo, so a user who comes
+// from a directory through nsswitch would be named differently or not at all
+func self(t *testing.T) string {
+	t.Helper()
+	name, err := userName(uint32(os.Getuid()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return name
 }
 
 // The socket is bound before serve is reached, so a connection made here is
