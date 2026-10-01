@@ -35,12 +35,12 @@ func enrol(path string) error {
 	}
 
 	if err := json.NewEncoder(conn).Encode(answer{Code: strings.TrimSpace(line)}); err != nil {
-		return err
+		return lost(err)
 	}
 
 	var r result
 	if err := dec.Decode(&r); err != nil {
-		return err
+		return lost(err)
 	}
 	if r.Error != "" {
 		return fmt.Errorf("%s", r.Error)
@@ -48,4 +48,13 @@ func enrol(path string) error {
 
 	fmt.Println("\nEnrolled. The next login will ask for a code.")
 	return nil
+}
+
+// Not the bare error: when the daemon drops a caller who took longer than
+// enrolTimeout, all that reaches the caller is a broken pipe or an EOF
+func lost(err error) error {
+	return fmt.Errorf(`the connection closed before the code was checked, perhaps because it
+took longer than %v; nothing was saved.
+Remove the entry just added, then log in again and scan the code shown then
+(%v)`, enrolTimeout, err)
 }

@@ -14,10 +14,24 @@ import (
 )
 
 // Without a deadline, a caller who walks away mid-enrolment would hold the
-// connection open for as long as the daemon runs
-const enrolTimeout = 5 * time.Minute
+// connection open for as long as the daemon runs. Not shorter: a caller whose
+// app cannot read the QR code types the secret in by hand, and five minutes has
+// been seen to run out on them
+const enrolTimeout = 15 * time.Minute
 
 const enrolledMessage = "already enrolled; ask an operator to reset it"
+
+// Not a bare "does not match": a caller who tries again gets a new seed, so a
+// code from an entry added on an earlier try can never match, and nothing tells
+// the entries apart since they all carry the same name.
+//
+// The space is not stripped from the code instead: pam_google_authenticator
+// refuses it at login, and a caller who learnt here that it was accepted would
+// be refused there with no reason given
+const rejectedMessage = `that code does not match; nothing was saved.
+Type the six digits only, without the space the app shows between them.
+The QR code is new every time. Remove any entry added on an earlier try,
+then log in again and scan the code shown then`
 
 type daemon struct {
 	seedDir string
@@ -109,7 +123,7 @@ func (d daemon) enrol(conn *net.UnixConn, enc *json.Encoder) (string, error) {
 
 	ok, err := verify(seed, a.Code, time.Now())
 	if err != nil || !ok {
-		enc.Encode(result{Error: "that code does not match; nothing was saved"})
+		enc.Encode(result{Error: rejectedMessage})
 		return name, fmt.Errorf("code rejected")
 	}
 
