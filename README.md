@@ -43,7 +43,7 @@ worked and the login will still be refused.
 ## As a service
 
 A unit file is in `systemd/`. Fill in `-issuer` and `-seed-dir` in `ExecStart`,
-then
+and set `ReadWritePaths` to the same directory as `-seed-dir`, then
 
 ```
 cp systemd/totp-enroll.service /etc/systemd/system/

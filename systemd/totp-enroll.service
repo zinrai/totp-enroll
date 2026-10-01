@@ -11,7 +11,9 @@ ExecStart=/usr/local/sbin/totp-enroll -daemon -issuer HOST -seed-dir /etc/google
 # out when they cannot enrol. systemctl stop still stops it
 Restart=always
 
-# The seeds are the only thing this needs to reach
+# The seeds are the only thing this needs to reach. ReadWritePaths has to name
+# the same directory as -seed-dir, or the seed directory is read only to the
+# daemon
 ProtectSystem=strict
 ReadWritePaths=/etc/google-authenticator
 RuntimeDirectory=totp-enroll

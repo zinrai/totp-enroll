@@ -49,7 +49,7 @@ func main() {
 	if *issuer == "" || *seedDir == "" {
 		log.Fatal("-issuer and -seed-dir are required")
 	}
-	if _, err := os.Stat(*seedDir); err != nil {
+	if err := checkSeedDir(*seedDir); err != nil {
 		log.Fatal(err)
 	}
 	l, err := listen(*socket)

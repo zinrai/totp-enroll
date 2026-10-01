@@ -64,3 +64,24 @@ func TestSeedIsNotReplaced(t *testing.T) {
 		t.Errorf("left behind: %v", entries)
 	}
 }
+
+// The daemon refuses to start rather than offer seeds it cannot save
+func TestUnwritableSeedDirIsRefused(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root writes through the mode")
+	}
+
+	dir := t.TempDir()
+	if err := checkSeedDir(dir); err != nil {
+		t.Fatalf("writable directory: %v", err)
+	}
+
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o700) })
+
+	if err := checkSeedDir(dir); err == nil {
+		t.Error("accepted a directory it cannot write")
+	}
+}

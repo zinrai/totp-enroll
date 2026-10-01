@@ -18,6 +18,18 @@ func seedPath(dir, name string) string {
 	return filepath.Join(dir, name)
 }
 
+// A directory the daemon can read but not write, such as one left out of
+// ReadWritePaths under ProtectSystem=strict, would otherwise go unnoticed until
+// a caller had scanned a code and was told the seed could not be saved
+func checkSeedDir(dir string) error {
+	tmp, err := os.CreateTemp(dir, ".enrol-")
+	if err != nil {
+		return err
+	}
+	tmp.Close()
+	return os.Remove(tmp.Name())
+}
+
 func hasSeed(dir, name string) bool {
 	_, err := os.Stat(seedPath(dir, name))
 	return err == nil
