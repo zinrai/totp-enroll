@@ -88,8 +88,6 @@ func TestRejectedCodeLeavesNoSeed(t *testing.T) {
 	}
 }
 
-// The socket is bound before serve is reached, so a connection made here is
-// never racing the daemon
 // Someone who took over a live session could otherwise move the second factor
 // to a phone of their own, and the real user would never know
 func TestSecondEnrolmentIsRefused(t *testing.T) {
@@ -123,6 +121,8 @@ func TestSecondEnrolmentIsRefused(t *testing.T) {
 	}
 }
 
+// The socket is bound before serve is reached, so a connection made here is
+// never racing the daemon
 func serving(t *testing.T, seedDir string) net.Conn {
 	t.Helper()
 	l, err := listen(filepath.Join(t.TempDir(), "s"))
