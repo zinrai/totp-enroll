@@ -2,8 +2,7 @@ package main
 
 import "fmt"
 
-// Overwritten by goreleaser via -ldflags -X, so the defaults are what a
-// locally built binary reports
+// Variables rather than constants: goreleaser overwrites them with -ldflags -X
 var (
 	version = "dev"
 	commit  = "none"

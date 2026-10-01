@@ -14,8 +14,8 @@ import (
 	"strings"
 )
 
-// Under a unit with RuntimeDirectory=totp-enroll this is the one place in /run
-// the daemon can write, and systemd removes it when the service stops
+// Not directly in /run: under ProtectSystem=strict the daemon can write only
+// its RuntimeDirectory there, which systemd also removes when the service stops
 const defaultSocket = "/run/totp-enroll/socket"
 
 func main() {
@@ -50,8 +50,9 @@ func main() {
 	if *issuer == "" || *seedDir == "" {
 		log.Fatal("-issuer and -seed-dir are required")
 	}
-	// The app splits the label on the first colon, so one in the issuer would
-	// move the rest of it into the account name
+	// Refused rather than escaped: the app splits the label on the first colon
+	// after decoding it, so even %3A would move the rest of the issuer into the
+	// account name
 	if strings.Contains(*issuer, ":") {
 		log.Fatal("-issuer cannot contain a colon")
 	}

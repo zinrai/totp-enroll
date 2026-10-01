@@ -6,8 +6,7 @@ import (
 	"time"
 )
 
-// RFC 6238 appendix B. A code this tool accepts has to be the one the
-// authenticator app produced and the one pam_google_authenticator will expect
+// The SHA-1 test vectors from RFC 6238 appendix B
 func TestCodesMatchTheStandard(t *testing.T) {
 	seed := base32.StdEncoding.WithPadding(base32.NoPadding).
 		EncodeToString([]byte("12345678901234567890"))
@@ -32,9 +31,7 @@ func TestCodesMatchTheStandard(t *testing.T) {
 	}
 }
 
-// The seed is written only once a code comes back. Accepting a wrong one would
-// leave the user with a seed their phone cannot produce codes for, and no
-// second factor to fall back on
+// Codes that are wrong, empty, too short, not digits or too long are refused
 func TestWrongCodeIsRejected(t *testing.T) {
 	seed, err := newSeed()
 	if err != nil {
@@ -50,8 +47,8 @@ func TestWrongCodeIsRejected(t *testing.T) {
 	}
 }
 
-// The seed pam_google_authenticator is given has to accept the same codes over
-// the same window, or a clock that drifts one step enrols and then locks out
+// A code from the step before or after the current one is accepted, the window
+// pam_google_authenticator uses with WINDOW_SIZE 3
 func TestCodeIsAcceptedAcrossTheWindow(t *testing.T) {
 	seed, err := newSeed()
 	if err != nil {

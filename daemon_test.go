@@ -51,8 +51,7 @@ func TestEnrolmentWritesTheSeedForThePeer(t *testing.T) {
 	}
 }
 
-// Nothing is written until a code comes back, so a caller who gets it wrong is
-// left able to try again rather than locked out
+// A wrong code is refused and leaves no seed, so the caller can try again
 func TestRejectedCodeLeavesNoSeed(t *testing.T) {
 	me := self(t)
 
@@ -81,8 +80,8 @@ func TestRejectedCodeLeavesNoSeed(t *testing.T) {
 	}
 }
 
-// Someone who took over a live session could otherwise move the second factor
-// to a phone of their own, and the real user would never know
+// A user who already holds a seed is refused before being offered a new one,
+// and the seed they hold is left as it was
 func TestSecondEnrolmentIsRefused(t *testing.T) {
 	me := self(t)
 
@@ -150,8 +149,8 @@ func secretOf(t *testing.T, uri string) string {
 	return secret
 }
 
-// The issuer and the name are what the app shows, and either can hold
-// characters that mean something in a URI
+// Characters that mean something in a URI are escaped in the label and the
+// issuer parameter, and read back unchanged
 func TestURIEscapesTheLabel(t *testing.T) {
 	got := otpauthURI("gw example", "alice@corp+1", "ABCDEFGH")
 	want := "otpauth://totp/gw%20example:alice%40corp%2B1?secret=ABCDEFGH&issuer=gw%20example"

@@ -2,14 +2,13 @@ package main
 
 import (
 	"errors"
-	"io/fs"
 	"os"
 	"strings"
 	"testing"
 )
 
-// pam_google_authenticator reads this file at every login. A layout it does not
-// understand locks the user out, and the seed is the only second factor there is
+// The file holds the seed and the options pam_google_authenticator reads, and
+// only its owner can read it
 func TestSeedFileIsWhatPamReads(t *testing.T) {
 	dir := t.TempDir()
 	if err := writeSeed(dir, "alice", "ABCDEFGHIJKLMNOPQRSTUVWXYZ"); err != nil {
@@ -34,8 +33,8 @@ func TestSeedFileIsWhatPamReads(t *testing.T) {
 	}
 }
 
-// Two connections from the same user can both get past hasSeed. The one that
-// finishes second must not replace the seed the first one saved
+// A second write for the same user is refused even when it got past hasSeed,
+// and the first seed is left in place
 func TestSeedIsNotReplaced(t *testing.T) {
 	dir := t.TempDir()
 	if err := writeSeed(dir, "alice", "ABCDEFGH"); err != nil {
@@ -43,8 +42,8 @@ func TestSeedIsNotReplaced(t *testing.T) {
 	}
 
 	err := writeSeed(dir, "alice", "IJKLMNOP")
-	if !errors.Is(err, fs.ErrExist) {
-		t.Errorf("second write: got %v, want %v", err, fs.ErrExist)
+	if !errors.Is(err, errEnrolled) {
+		t.Errorf("second write: got %v, want %v", err, errEnrolled)
 	}
 
 	b, err := os.ReadFile(seedPath(dir, "alice"))

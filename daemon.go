@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"log"
 	"net"
 	"net/url"
@@ -14,13 +13,20 @@ import (
 	"time"
 )
 
+// Without a deadline, a caller who walks away mid-enrolment would hold the
+// connection open for as long as the daemon runs
+const enrolTimeout = 5 * time.Minute
+
+const enrolledMessage = "already enrolled; ask an operator to reset it"
+
 type daemon struct {
 	seedDir string
 	issuer  string
 }
 
-// Binding is kept apart from serving so that a caller can tell the two failures
-// apart, and so that the socket is ready to accept before serve is reached
+// Not part of serve: binding there would leave a caller unable to tell a socket
+// that could not be bound from one that stopped accepting, and a connection made
+// right after serve was started could race the bind
 func listen(path string) (net.Listener, error) {
 	// A socket left over from a killed daemon would keep the new one from
 	// binding, and there is nothing to preserve in it
@@ -55,9 +61,7 @@ func (d daemon) serve(l net.Listener) error {
 
 func (d daemon) handle(conn *net.UnixConn) {
 	defer conn.Close()
-	// A caller who walks away mid-enrolment would otherwise hold the
-	// connection open for as long as the daemon runs
-	conn.SetDeadline(time.Now().Add(5 * time.Minute))
+	conn.SetDeadline(time.Now().Add(enrolTimeout))
 
 	enc := json.NewEncoder(conn)
 	name, err := d.enrol(conn, enc)
@@ -76,8 +80,8 @@ func (d daemon) enrol(conn *net.UnixConn, enc *json.Encoder) (string, error) {
 	}
 
 	if hasSeed(d.seedDir, name) {
-		enc.Encode(offer{Error: "already enrolled; ask an operator to reset it"})
-		return name, fmt.Errorf("already enrolled")
+		enc.Encode(offer{Error: enrolledMessage})
+		return name, errEnrolled
 	}
 
 	seed, err := newSeed()
@@ -88,8 +92,8 @@ func (d daemon) enrol(conn *net.UnixConn, enc *json.Encoder) (string, error) {
 
 	uri := otpauthURI(d.issuer, name, seed)
 
-	// The picture is a convenience and the address below it is what the app
-	// needs, so a host without qrencode can still enrol
+	// Not fatal: the address below the picture is all the app needs, so a host
+	// without qrencode can still enrol
 	qr, err := qrcode(uri)
 	if err != nil {
 		log.Printf("%s: no qr code: %v", name, err)
@@ -110,11 +114,9 @@ func (d daemon) enrol(conn *net.UnixConn, enc *json.Encoder) (string, error) {
 	}
 
 	if err := writeSeed(d.seedDir, name, seed); err != nil {
-		// Another connection from the same user saved a seed while this one
-		// was waiting for a code
-		if errors.Is(err, fs.ErrExist) {
-			enc.Encode(result{Error: "already enrolled; ask an operator to reset it"})
-			return name, fmt.Errorf("already enrolled")
+		if errors.Is(err, errEnrolled) {
+			enc.Encode(result{Error: enrolledMessage})
+			return name, err
 		}
 		enc.Encode(result{Error: "cannot save the seed"})
 		return name, err
@@ -122,15 +124,14 @@ func (d daemon) enrol(conn *net.UnixConn, enc *json.Encoder) (string, error) {
 	return name, enc.Encode(result{})
 }
 
-// A name from a directory can hold characters such as @ or a space, which would
-// otherwise reach the app as part of the address rather than the name
 func otpauthURI(issuer, name, seed string) string {
 	i, n := uriEscape(issuer), uriEscape(name)
 	return fmt.Sprintf("otpauth://totp/%s:%s?secret=%s&issuer=%s", i, n, seed, i)
 }
 
-// The key URI format asks for a space as %20, which QueryEscape writes as +. A
-// + in the input is already %2B by then, so the two cannot be confused
+// Not QueryEscape alone: it writes a space as +, which the key URI format does
+// not read as a space. A + in the input is already %2B by then, so the two
+// cannot be confused
 func uriEscape(s string) string {
 	return strings.ReplaceAll(url.QueryEscape(s), "+", "%20")
 }

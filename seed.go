@@ -1,26 +1,30 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
 
-// The layout pam_google_authenticator reads. DISALLOW_REUSE and RATE_LIMIT are
-// left out because they make the module write back to the file, which puts it
-// outside what configuration management can hold
+// Without DISALLOW_REUSE and RATE_LIMIT: they make pam_google_authenticator
+// write back to the file, which puts it outside what configuration management
+// can hold
 const seedFile = `%s
 " TOTP_AUTH
 " WINDOW_SIZE 3
 `
 
+var errEnrolled = errors.New("already enrolled")
+
 func seedPath(dir, name string) string {
 	return filepath.Join(dir, name)
 }
 
-// A directory the daemon can read but not write, such as one left out of
-// ReadWritePaths under ProtectSystem=strict, would otherwise go unnoticed until
-// a caller had scanned a code and was told the seed could not be saved
+// Not a Stat: it passes a directory the daemon can read but not write, such as
+// one left out of ReadWritePaths under ProtectSystem=strict, and the mistake
+// would surface only after a caller had scanned a code
 func checkSeedDir(dir string) error {
 	tmp, err := os.CreateTemp(dir, ".enrol-")
 	if err != nil {
@@ -35,19 +39,9 @@ func hasSeed(dir, name string) bool {
 	return err == nil
 }
 
-// A half written seed would lock the user out on their next login, and there is
-// no second factor to fall back on.
-//
-// The seed is put in place with a link rather than a rename. Two connections
-// from the same user can both pass hasSeed, and a rename would let the later one
-// replace the seed the earlier one saved, which is the second enrolment that is
-// meant to be refused. A link fails if the name is taken.
-//
-// Both the file and the directory are synced before the caller is told the
-// seed was saved. Without the first, a crash can leave the name pointing at an
-// empty file; without the second, the name itself can be lost and the user is
-// told they enrolled when they did not
 func writeSeed(dir, name, seed string) error {
+	// Not written under its own name: a crash part way would leave half a
+	// seed, and the user locked out with no second factor to fall back on
 	tmp, err := os.CreateTemp(dir, ".enrol-")
 	if err != nil {
 		return err
@@ -62,6 +56,8 @@ func writeSeed(dir, name, seed string) error {
 		tmp.Close()
 		return err
 	}
+	// Without this, a crash after the link can leave the name pointing at an
+	// empty file
 	if err := tmp.Sync(); err != nil {
 		tmp.Close()
 		return err
@@ -69,9 +65,16 @@ func writeSeed(dir, name, seed string) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
+	// Not a rename: a second connection from the same user that got past
+	// hasSeed would replace the seed the first one saved. A link fails instead
 	if err := os.Link(tmp.Name(), seedPath(dir, name)); err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return errEnrolled
+		}
 		return err
 	}
+	// Without this, the name can be lost after the caller was told they
+	// enrolled
 	return syncDir(dir)
 }
 
