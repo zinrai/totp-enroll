@@ -137,8 +137,12 @@ func uriEscape(s string) string {
 }
 
 // Drawn here rather than by the caller so that the shell the caller is given
-// does not need qrencode on its allowlist
+// does not need qrencode on its allowlist.
+//
+// Not UTF8: it draws the light modules in the terminal's own text colour, so on
+// a light background the code comes out inverted and with a dark border, which
+// apps will not read. ANSIUTF8 sets both colours itself
 func qrcode(uri string) (string, error) {
-	out, err := exec.Command("qrencode", "-t", "UTF8", "-m", "1", "--", uri).Output()
+	out, err := exec.Command("qrencode", "-t", "ANSIUTF8", "-m", "1", "--", uri).Output()
 	return string(out), err
 }
