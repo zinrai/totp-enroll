@@ -24,7 +24,12 @@ func hasSeed(dir, name string) bool {
 }
 
 // A half written seed would lock the user out on their next login, and there is
-// no second factor to fall back on
+// no second factor to fall back on.
+//
+// The seed is put in place with a link rather than a rename. Two connections
+// from the same user can both pass hasSeed, and a rename would let the later one
+// replace the seed the earlier one saved, which is the second enrolment that is
+// meant to be refused. A link fails if the name is taken
 func writeSeed(dir, name, seed string) error {
 	tmp, err := os.CreateTemp(dir, ".enrol-")
 	if err != nil {
@@ -43,5 +48,5 @@ func writeSeed(dir, name, seed string) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmp.Name(), seedPath(dir, name))
+	return os.Link(tmp.Name(), seedPath(dir, name))
 }

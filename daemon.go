@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"net"
 	"os"
@@ -106,6 +108,12 @@ func (d daemon) enrol(conn *net.UnixConn, enc *json.Encoder) (string, error) {
 	}
 
 	if err := writeSeed(d.seedDir, name, seed); err != nil {
+		// Another connection from the same user saved a seed while this one
+		// was waiting for a code
+		if errors.Is(err, fs.ErrExist) {
+			enc.Encode(result{Error: "already enrolled; ask an operator to reset it"})
+			return name, fmt.Errorf("already enrolled")
+		}
 		enc.Encode(result{Error: "cannot save the seed"})
 		return name, err
 	}
